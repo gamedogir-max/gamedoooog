@@ -28,9 +28,12 @@ use WP_Error;
  *  - {@see AutoCreateGuard::$isAutoCreating} is set for the entire
  *    `wp_insert_post` call so `ParentConnectionRegistrar` bails out of its own
  *    lifecycle hooks (no cascade creation / no re-entrancy).
- *  - `$_POST` is stashed and cleared during insertion so JetEngine and any
- *    other meta-box handler cannot copy the child's submitted form data into
- *    the freshly created parent.
+ *  - Request payload globals (`$_POST`, `$_REQUEST`, and `$_FILES`) are
+ *    stashed and cleared during insertion so JetEngine and other meta-box
+ *    handlers cannot copy the child's submitted form data into the freshly
+ *    created parent.
+ *  - An explicit post author is supplied, with the source child's author as
+ *    a fallback when the insertion is not running in an authenticated request.
  *
  * Parent metadata initialisation:
  *  - Auto-created Sire → `FIELD_SEX` = 'male'.
@@ -99,18 +102,19 @@ final class AutoCreateParentService implements ParentAutoCreatorInterface
             return null;
         }
 
-        return $this->createParentPost($sanitized, $sex);
+        return $this->createParentPost($sanitized, $sex, $excludeId);
     }
 
     /**
      * Creates a minimal published parent dog post with the given name and sex.
      *
-     * @param string $name Sanitized parent name.
-     * @param string $sex  Sex meta value ('male' / 'female').
+     * @param string     $name        Sanitized parent name.
+     * @param string     $sex         Sex meta value ('male' / 'female').
+     * @param DogId|null $sourceDogId The child that caused this creation.
      *
      * @return DogId|null The newly created parent's DogId, or null on failure.
      */
-    private function createParentPost(string $name, string $sex): ?DogId
+    private function createParentPost(string $name, string $sex, ?DogId $sourceDogId = null): ?DogId
     {
         if (AutoCreateGuard::isAutoCreating()) {
             // Belt-and-suspenders: never nest auto-creation.
@@ -120,11 +124,16 @@ final class AutoCreateParentService implements ParentAutoCreatorInterface
 
         AutoCreateGuard::begin();
 
-        // Stash and clear the request globals so JetEngine and other
-        // meta-box handlers cannot write the child's submitted fields into
-        // this brand-new parent post (no data contamination).
+        // Stash and clear every request payload source while inserting the
+        // placeholder. Some meta-box integrations read $_REQUEST or $_FILES
+        // instead of $_POST; clearing only $_POST lets the child's Gallery,
+        // DOB, Country, Titles, and similar fields leak into the new parent.
         $originalPost = $_POST ?? [];
+        $originalRequest = $_REQUEST ?? [];
+        $originalFiles = $_FILES ?? [];
         $_POST = [];
+        $_REQUEST = [];
+        $_FILES = [];
 
         try {
             $postarr = [
@@ -132,6 +141,7 @@ final class AutoCreateParentService implements ParentAutoCreatorInterface
                 'post_status' => 'publish',
                 'post_title'  => $name,
                 'post_name'   => sanitize_title($name),
+                'post_author' => $this->resolvePostAuthor($sourceDogId),
             ];
 
             error_log("GDPE AutoCreateParent: inserting parent post '{$name}' (sex: {$sex})");
@@ -169,8 +179,36 @@ final class AutoCreateParentService implements ParentAutoCreatorInterface
             return null;
         } finally {
             $_POST = $originalPost;
+            $_REQUEST = $originalRequest;
+            $_FILES = $originalFiles;
             AutoCreateGuard::end();
         }
+    }
+
+    /**
+     * Resolves the author for an auto-created parent post.
+     *
+     * A normal edit has a current user; background or programmatic saves may
+     * not. In that case retain the source child's existing author instead of
+     * creating an orphaned post with the WordPress default author ID of zero.
+     */
+    private function resolvePostAuthor(?DogId $sourceDogId): int
+    {
+        $currentUserId = (int) get_current_user_id();
+
+        if ($currentUserId > 0) {
+            return $currentUserId;
+        }
+
+        if ($sourceDogId !== null && function_exists('get_post_field')) {
+            $sourceAuthorId = (int) get_post_field('post_author', $sourceDogId->toInt());
+
+            if ($sourceAuthorId > 0) {
+                return $sourceAuthorId;
+            }
+        }
+
+        return 0;
     }
 
     /**
