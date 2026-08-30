@@ -53,6 +53,18 @@ final class JetEngineDogRepository implements DogRepositoryInterface
     }
 
     /**
+     * Statuses considered when resolving whether an existing dog post already
+     * covers an auto-created parent candidate.
+     *
+     * Auto-creation must be isolated so it only happens when NO matching dog
+     * exists in any of these statuses; pending/draft matches are promoted to
+     * published and reused instead of duplicated.
+     *
+     * @var list<string>
+     */
+    private const RELEVANT_STATUSES = ['publish', 'pending', 'draft'];
+
+    /**
      * Finds all published dogs whose dog_name meta field matches the given name.
      *
      * Uses `dog_name` meta field as PRIMARY source of truth (as specified by
@@ -68,55 +80,92 @@ final class JetEngineDogRepository implements DogRepositoryInterface
      */
     public function findPublishedByName(string $name, ?DogId $excludeId = null): array
     {
-        error_log("GDPE AutoConnect: findPublishedByName - Searching for '{$name}'" . 
+        return $this->findByName($name, $excludeId, ['publish']);
+    }
+
+    /**
+     * Finds every dog whose name matches the given name across the statuses
+     * relevant to auto-created parent resolution: publish, pending and draft.
+     *
+     * This is the authoritative pre-insert check for auto-creation. When a
+     * pending or draft dog already exists with the same name, the caller must
+     * promote it to published and reuse it instead of inserting a duplicate.
+     *
+     * @param string     $name      The exact dog name to search for.
+     * @param DogId|null $excludeId Optional dog ID to exclude (prevents self-parent).
+     *
+     * @return array<int, Dog> All matching dogs across publish/pending/draft (may be empty or multiple).
+     */
+    public function findByNameAcrossStatuses(string $name, ?DogId $excludeId = null): array
+    {
+        return $this->findByName($name, $excludeId, self::RELEVANT_STATUSES);
+    }
+
+    /**
+     * Shared exact-name lookup used by both published-only and cross-status
+     * resolution.
+     *
+     * Uses `dog_name` meta field as PRIMARY source of truth, with a
+     * `post_title` fallback for legacy posts.
+     *
+     * @param string           $name      The exact dog name to search for.
+     * @param DogId|null       $excludeId Optional dog ID to exclude (prevents self-parent).
+     * @param list<string>     $statuses  Post statuses to inspect.
+     *
+     * @return array<int, Dog> All matching dogs in the requested statuses.
+     */
+    private function findByName(string $name, ?DogId $excludeId = null, array $statuses = ['publish']): array
+    {
+        error_log("GDPE AutoConnect: findByName - Searching for '{$name}' in statuses [" . implode(',', $statuses) . ']' . 
                    ($excludeId ? ", excluding ID: {$excludeId->toInt()}" : ''));
 
-        // Normalize the search name
+        // Normalize the search name.
         $normalizedName = $this->normalizeName($name);
-        
-        // Primary search: Use dog_name meta field
-        $metaMatches = $this->findByDogNameMeta($normalizedName, $excludeId);
-        
+
+        // Primary search: Use dog_name meta field.
+        $metaMatches = $this->findByDogNameMeta($normalizedName, $excludeId, $statuses);
+
         error_log("GDPE AutoConnect: Found " . count($metaMatches) . " matches via dog_name meta");
-        
-        // If we found matches via meta, use those (primary source)
+
+        // If we found matches via meta, use those (primary source).
         if (!empty($metaMatches)) {
             return $metaMatches;
         }
 
-        // Fallback: Search by post_title (backward compatibility)
+        // Fallback: Search by post_title (backward compatibility).
         error_log("GDPE AutoConnect: No matches via dog_name, trying post_title fallback");
-        $titleMatches = $this->findByPostTitle($normalizedName, $excludeId);
-        
+        $titleMatches = $this->findByPostTitle($normalizedName, $excludeId, $statuses);
+
         error_log("GDPE AutoConnect: Found " . count($titleMatches) . " matches via post_title");
-        
+
         return $titleMatches;
     }
 
     /**
      * Searches for dogs using the dog_name meta field (PRIMARY method).
      *
-     * @param string     $normalizedName The normalized name to search for.
-     * @param DogId|null $excludeId      Optional ID to exclude.
+     * @param string           $normalizedName The normalized name to search for.
+     * @param DogId|null       $excludeId      Optional ID to exclude.
+     * @param list<string>     $statuses       Post statuses to inspect.
      *
      * @return array<int, Dog> Matching dogs.
      */
-    private function findByDogNameMeta(string $normalizedName, ?DogId $excludeId = null): array
+    private function findByDogNameMeta(string $normalizedName, ?DogId $excludeId = null, array $statuses = ['publish']): array
     {
         // MINOR FIX #1 (Whitespace Normalization Mismatch):
         // Changed from exact '=' match to 'EXISTS' check on dog_name meta field.
-        // The SQL-level query now only filters to "published dogs that have a dog_name set",
+        // The SQL-level query now only filters to "dogs that have a dog_name set",
         // and the existing PHP-side normalizeName() comparison does the authoritative
         // matching. This avoids missing dogs with irregular internal whitespace
         // (e.g. "Test  Father") that would not match the exact SQL '=' comparison.
-        
+        //
         // MINOR FIX #2 (posts_per_page limit):
         // Raised from 10 to 50 for better ambiguity detection coverage.
         // If more than 10 dogs share the same name, the ambiguity log would be
         // incomplete, understating the true number of duplicates.
         $queryArgs = [
             'post_type' => JetEngineFieldMap::CPT_SLUG,
-            'post_status' => 'publish',
+            'post_status' => $statuses,
             'posts_per_page' => 50,
             'no_found_rows' => true,
             'meta_query' => [
@@ -127,7 +176,7 @@ final class JetEngineDogRepository implements DogRepositoryInterface
             ],
         ];
 
-        // Exclude a specific dog ID (prevents self-parent)
+        // Exclude a specific dog ID (prevents self-parent).
         if ($excludeId !== null) {
             $queryArgs['post__not_in'] = [$excludeId->toInt()];
         }
@@ -141,14 +190,14 @@ final class JetEngineDogRepository implements DogRepositoryInterface
                 continue;
             }
 
-            // Get the actual stored dog_name value for validation
+            // Get the actual stored dog_name value for validation.
             $storedName = get_post_meta($post->ID, 'dog_name', true);
             $storedNormalized = $this->normalizeName($storedName);
 
-            // PHP-side authoritative normalization check (handles whitespace correctly)
+            // PHP-side authoritative normalization check (handles whitespace correctly).
             if ($storedNormalized === $normalizedName) {
                 $dogs[] = $this->mapper->toDomain($post, get_post_meta($post->ID));
-                error_log("GDPE AutoConnect: Meta match found - Post #{$post->ID}: '{$storedName}'");
+                error_log("GDPE AutoConnect: Meta match found - Post #{$post->ID}: '{$storedName}' (status: {$post->post_status})");
             }
         }
 
@@ -158,24 +207,25 @@ final class JetEngineDogRepository implements DogRepositoryInterface
     /**
      * Searches for dogs using post_title (FALLBACK method).
      *
-     * @param string     $normalizedName The normalized name to search for.
-     * @param DogId|null $excludeId      Optional ID to exclude.
+     * @param string           $normalizedName The normalized name to search for.
+     * @param DogId|null       $excludeId      Optional ID to exclude.
+     * @param list<string>     $statuses       Post statuses to inspect.
      *
      * @return array<int, Dog> Matching dogs.
      */
-    private function findByPostTitle(string $normalizedName, ?DogId $excludeId = null): array
+    private function findByPostTitle(string $normalizedName, ?DogId $excludeId = null, array $statuses = ['publish']): array
     {
         // MINOR FIX #2 (posts_per_page limit):
         // Raised from 10 to 50 for better ambiguity detection coverage.
         // Consistent with findByDogNameMeta() and findChildrenWaitingForParent().
         $queryArgs = [
             'post_type' => JetEngineFieldMap::CPT_SLUG,
-            'post_status' => 'publish',
+            'post_status' => $statuses,
             'posts_per_page' => 50,
             'no_found_rows' => true,
         ];
 
-        // Exclude a specific dog ID (prevents self-parent)
+        // Exclude a specific dog ID (prevents self-parent).
         if ($excludeId !== null) {
             $queryArgs['post__not_in'] = [$excludeId->toInt()];
         }
@@ -189,13 +239,13 @@ final class JetEngineDogRepository implements DogRepositoryInterface
                 continue;
             }
 
-            // Normalize and compare post title
+            // Normalize and compare post title.
             $titleNormalized = $this->normalizeName($post->post_title);
 
-            // Case-insensitive exact match
+            // Case-insensitive exact match.
             if ($titleNormalized === $normalizedName) {
                 $dogs[] = $this->mapper->toDomain($post, get_post_meta($post->ID));
-                error_log("GDPE AutoConnect: Title match found - Post #{$post->ID}: '{$post->post_title}'");
+                error_log("GDPE AutoConnect: Title match found - Post #{$post->ID}: '{$post->post_title}' (status: {$post->post_status})");
             }
         }
 

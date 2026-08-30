@@ -395,6 +395,18 @@ final class ParentConnectionRegistrar
             return true;
         }
 
+        // Skip placeholder parents created by AutoCreateParentService.
+        // These are orphan author-0 posts that exist solely as auto-generated
+        // Sire/Dam placeholders. Treating them as regular user-submitted dogs
+        // would risk re-entrant ancestor creation and would let them enter the
+        // same auto-connect pipeline as a real submitted dog. The marker is
+        // checked in addition to the in-request AutoCreateGuard so placeholder
+        // posts remain excluded even on later saves after the guard has exited.
+        if (get_post_meta($postId, JetEngineFieldMap::META_AUTO_CREATED, true) === '1') {
+            error_log("GDPE ParentConnection: Skipping auto-created placeholder post #{$postId}");
+            return true;
+        }
+
         return false;
     }
 
