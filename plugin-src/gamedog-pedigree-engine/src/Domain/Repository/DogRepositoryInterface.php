@@ -58,6 +58,24 @@ interface DogRepositoryInterface
     public function findPublishedByName(string $name, ?DogId $excludeId = null): array;
 
     /**
+     * Finds all dogs whose name matches the given name across the statuses
+     * relevant to auto-created parent resolution: publish, pending and draft.
+     *
+     * Used by the auto-create service to prevent duplicate parent posts when a
+     * matching dog already exists in a non-published status. Pending/draft dogs
+     * are returned so the caller can promote them to published and reuse them.
+     *
+     * Matching follows the same primary/fallback rules as findPublishedByName():
+     * dog_name meta first, then post_title.
+     *
+     * @param string      $name      The exact dog name to search for.
+     * @param DogId|null  $excludeId Optional dog ID to exclude (prevents self-parent).
+     *
+     * @return array<int, Dog> All matching dogs across publish/pending/draft (may be empty or multiple).
+     */
+    public function findByNameAcrossStatuses(string $name, ?DogId $excludeId = null): array;
+
+    /**
      * Finds all published dogs that are waiting for a parent with the given name.
      *
      * Used for REVERSE/DEFERRED parent resolution: when a new parent dog is
