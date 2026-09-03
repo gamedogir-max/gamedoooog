@@ -11,20 +11,36 @@ namespace GameDog\PedigreeEngine\Infrastructure\WordPress;
 
 use GameDog\PedigreeEngine\Application\Mapper\PedigreeTreeMapper;
 use GameDog\PedigreeEngine\Application\Port\ContainerInterface;
+use GameDog\PedigreeEngine\Application\UseCase\BuildDiversityMetricsUseCase;
+use GameDog\PedigreeEngine\Application\UseCase\BuildPedigreeMatrixUseCase;
+use GameDog\PedigreeEngine\Application\UseCase\BuildPedigreeStatisticsUseCase;
 use GameDog\PedigreeEngine\Application\UseCase\BuildPedigreeTreeUseCase;
 use GameDog\PedigreeEngine\Application\UseCase\CalculateDogCoiUseCase;
+use GameDog\PedigreeEngine\Application\UseCase\GetSiblingsUseCase;
 use GameDog\PedigreeEngine\Domain\Contract\CacheInterface;
 use GameDog\PedigreeEngine\Domain\Contract\RelationTraversalInterface;
 use GameDog\PedigreeEngine\Domain\Repository\DogRepositoryInterface;
+use GameDog\PedigreeEngine\Domain\Service\AncestorPathCollector;
+use GameDog\PedigreeEngine\Domain\Service\BloodContributionCalculatorService;
 use GameDog\PedigreeEngine\Domain\Service\InbreedingCalculatorInterface;
 use GameDog\PedigreeEngine\Domain\Service\PedigreeTreeBuilderService;
 use GameDog\PedigreeEngine\Domain\Service\WrightInbreedingCalculatorService;
 use GameDog\PedigreeEngine\Infrastructure\Cache\WordPressCacheAdapter;
 use GameDog\PedigreeEngine\Infrastructure\JetEngine\JetEngineRelationTraversal;
 use GameDog\PedigreeEngine\Infrastructure\Repository\JetEngineDogRepository;
+use GameDog\PedigreeEngine\Presentation\Renderer\AnalyticsSuiteRenderer;
+use GameDog\PedigreeEngine\Presentation\Renderer\DiversityCardRenderer;
+use GameDog\PedigreeEngine\Presentation\Renderer\PedigreeMatrixRenderer;
+use GameDog\PedigreeEngine\Presentation\Renderer\PedigreeStatisticsRenderer;
 use GameDog\PedigreeEngine\Presentation\Renderer\PedigreeTreeRenderer;
+use GameDog\PedigreeEngine\Presentation\Renderer\SiblingsTabsRenderer;
+use GameDog\PedigreeEngine\Presentation\Shortcode\PedigreeAnalyticsSuiteShortcode;
+use GameDog\PedigreeEngine\Presentation\Shortcode\PedigreeDiversityCardShortcode;
+use GameDog\PedigreeEngine\Presentation\Shortcode\PedigreeMatrixShortcode;
+use GameDog\PedigreeEngine\Presentation\Shortcode\PedigreeStatisticsShortcode;
 use GameDog\PedigreeEngine\Presentation\Shortcode\PedigreeTreeShortcode;
 use GameDog\PedigreeEngine\Presentation\Shortcode\SiblingsBoxShortcode;
+use GameDog\PedigreeEngine\Presentation\Shortcode\SiblingsTabsShortcode;
 use GameDog\PedigreeEngine\Presentation\ViewModel\PedigreeTreeViewModelBuilder;
 
 final class ServiceContainer implements ContainerInterface
@@ -87,8 +103,18 @@ final class ServiceContainer implements ContainerInterface
             );
         };
 
-        $this->factories[InbreedingCalculatorInterface::class] = static function (): InbreedingCalculatorInterface {
-            return new WrightInbreedingCalculatorService();
+        $this->factories[AncestorPathCollector::class] = static function (): AncestorPathCollector {
+            return new AncestorPathCollector();
+        };
+
+        $this->factories[InbreedingCalculatorInterface::class] = function (self $c): InbreedingCalculatorInterface {
+            return new WrightInbreedingCalculatorService(
+                $c->get(AncestorPathCollector::class)
+            );
+        };
+
+        $this->factories[BloodContributionCalculatorService::class] = static function (): BloodContributionCalculatorService {
+            return new BloodContributionCalculatorService();
         };
 
         $this->factories[PedigreeTreeBuilderService::class] = function (self $c): PedigreeTreeBuilderService {
@@ -144,6 +170,98 @@ final class ServiceContainer implements ContainerInterface
             return new SiblingsBoxShortcode(
                 $c->get(DogRepositoryInterface::class),
                 $c->get(RelationTraversalInterface::class)
+            );
+        };
+
+        // --- Pedigree & Genetic Analytics Engine components ---
+
+        $this->factories[BuildPedigreeMatrixUseCase::class] = function (self $c): BuildPedigreeMatrixUseCase {
+            return new BuildPedigreeMatrixUseCase(
+                $c->get(PedigreeTreeBuilderService::class),
+                $c->get(DogRepositoryInterface::class)
+            );
+        };
+
+        $this->factories[GetSiblingsUseCase::class] = function (self $c): GetSiblingsUseCase {
+            return new GetSiblingsUseCase(
+                $c->get(DogRepositoryInterface::class),
+                $c->get(RelationTraversalInterface::class)
+            );
+        };
+
+        $this->factories[BuildPedigreeStatisticsUseCase::class] = function (self $c): BuildPedigreeStatisticsUseCase {
+            return new BuildPedigreeStatisticsUseCase(
+                $c->get(PedigreeTreeBuilderService::class),
+                $c->get(BloodContributionCalculatorService::class),
+                $c->get(DogRepositoryInterface::class)
+            );
+        };
+
+        $this->factories[BuildDiversityMetricsUseCase::class] = function (self $c): BuildDiversityMetricsUseCase {
+            return new BuildDiversityMetricsUseCase(
+                $c->get(PedigreeTreeBuilderService::class),
+                $c->get(CalculateDogCoiUseCase::class)
+            );
+        };
+
+        $this->factories[PedigreeMatrixRenderer::class] = static function (): PedigreeMatrixRenderer {
+            return new PedigreeMatrixRenderer();
+        };
+
+        $this->factories[SiblingsTabsRenderer::class] = static function (): SiblingsTabsRenderer {
+            return new SiblingsTabsRenderer();
+        };
+
+        $this->factories[PedigreeStatisticsRenderer::class] = static function (): PedigreeStatisticsRenderer {
+            return new PedigreeStatisticsRenderer();
+        };
+
+        $this->factories[DiversityCardRenderer::class] = static function (): DiversityCardRenderer {
+            return new DiversityCardRenderer();
+        };
+
+        $this->factories[AnalyticsSuiteRenderer::class] = function (self $c): AnalyticsSuiteRenderer {
+            return new AnalyticsSuiteRenderer(
+                $c->get(SiblingsTabsRenderer::class),
+                $c->get(PedigreeStatisticsRenderer::class),
+                $c->get(DiversityCardRenderer::class)
+            );
+        };
+
+        $this->factories[PedigreeMatrixShortcode::class] = function (self $c): PedigreeMatrixShortcode {
+            return new PedigreeMatrixShortcode(
+                $c->get(BuildPedigreeMatrixUseCase::class),
+                $c->get(PedigreeMatrixRenderer::class)
+            );
+        };
+
+        $this->factories[SiblingsTabsShortcode::class] = function (self $c): SiblingsTabsShortcode {
+            return new SiblingsTabsShortcode(
+                $c->get(GetSiblingsUseCase::class),
+                $c->get(SiblingsTabsRenderer::class)
+            );
+        };
+
+        $this->factories[PedigreeStatisticsShortcode::class] = function (self $c): PedigreeStatisticsShortcode {
+            return new PedigreeStatisticsShortcode(
+                $c->get(BuildPedigreeStatisticsUseCase::class),
+                $c->get(PedigreeStatisticsRenderer::class)
+            );
+        };
+
+        $this->factories[PedigreeDiversityCardShortcode::class] = function (self $c): PedigreeDiversityCardShortcode {
+            return new PedigreeDiversityCardShortcode(
+                $c->get(BuildDiversityMetricsUseCase::class),
+                $c->get(DiversityCardRenderer::class)
+            );
+        };
+
+        $this->factories[PedigreeAnalyticsSuiteShortcode::class] = function (self $c): PedigreeAnalyticsSuiteShortcode {
+            return new PedigreeAnalyticsSuiteShortcode(
+                $c->get(GetSiblingsUseCase::class),
+                $c->get(BuildPedigreeStatisticsUseCase::class),
+                $c->get(BuildDiversityMetricsUseCase::class),
+                $c->get(AnalyticsSuiteRenderer::class)
             );
         };
 

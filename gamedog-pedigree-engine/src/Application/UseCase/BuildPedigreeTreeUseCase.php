@@ -119,7 +119,7 @@ final class BuildPedigreeTreeUseCase
             );
             // Persist when possible.
             try {
-                $this->dogs->saveCoi($id, $coi);
+                $this->dogs->saveCoi($id, $coi, $depthVo->toInt());
             } catch (\Throwable $e) {
                 // ignore
             }

@@ -133,7 +133,7 @@ final class JetEngineDogRepository implements DogRepositoryInterface
     /**
      * {@inheritdoc}
      */
-    public function saveCoi(DogId $id, CoiPercentage $coi): void
+    public function saveCoi(DogId $id, CoiPercentage $coi, int $depth = 4): void
     {
         if (!function_exists('update_post_meta')) {
             return;
@@ -144,6 +144,9 @@ final class JetEngineDogRepository implements DogRepositoryInterface
 
         // Also store raw float for sorting / queries.
         update_post_meta($id->toInt(), $this->coiMetaKey . '_raw', $coi->percent());
+
+        // Track the depth the value was computed at.
+        update_post_meta($id->toInt(), $this->coiMetaKey . '_depth', max(1, $depth));
 
         // Bust memory cache so subsequent reads see the new value.
         unset($this->memory[$id->toInt()]);
@@ -168,6 +171,25 @@ final class JetEngineDogRepository implements DogRepositoryInterface
         }
 
         return CoiPercentage::fromStored($raw);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getStoredCoiDepth(DogId $id): int
+    {
+        if (!function_exists('get_post_meta')) {
+            return 0;
+        }
+
+        $raw = get_post_meta($id->toInt(), $this->coiMetaKey . '_depth', true);
+        if ($raw === '' || $raw === null || $raw === false) {
+            return 0;
+        }
+
+        $depth = (int) $raw;
+
+        return $depth > 0 ? $depth : 0;
     }
 
     /**

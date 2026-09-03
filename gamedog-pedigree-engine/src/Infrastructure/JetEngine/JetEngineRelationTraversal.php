@@ -62,16 +62,8 @@ final class JetEngineRelationTraversal implements RelationTraversalInterface
             return $this->parentCache[$id];
         }
 
-        $sire = $this->resolveRelatedId($id, $this->sireRelationId, 'sire');
-        $dam  = $this->resolveRelatedId($id, $this->damRelationId, 'dam');
-
-        // Meta fallbacks commonly used alongside JetEngine.
-        if ($sire === null) {
-            $sire = $this->metaDogId($id, ['_dog_sire_id', 'dog_sire', 'sire_id', 'father_id']);
-        }
-        if ($dam === null) {
-            $dam = $this->metaDogId($id, ['_dog_dam_id', 'dog_dam', 'dam_id', 'mother_id']);
-        }
+        $sire = $this->resolveRelatedId($id, $this->sireRelationId);
+        $dam  = $this->resolveRelatedId($id, $this->damRelationId);
 
         $result = [
             'sire' => $sire,
@@ -112,63 +104,43 @@ final class JetEngineRelationTraversal implements RelationTraversalInterface
         $this->parentCache = [];
     }
 
-    private function resolveRelatedId(int $postId, int $relationId, string $role): ?DogId
-    {
-        // JetEngine relations API (modern).
-        if (function_exists('jet_engine') && isset(jet_engine()->relations)) {
-            try {
-                $relation = jet_engine()->relations->get_active_relations($relationId);
-                if ($relation) {
-                    // For child->parent: dog is typically the child object.
-                    $related = $relation->get_parents($postId, 'ids');
-                    if (is_array($related) && $related !== []) {
-                        return DogId::fromMixed(reset($related));
-                    }
-
-                    // Some setups store the dog as parent of the relation.
-                    $related = $relation->get_children($postId, 'ids');
-                    if (is_array($related) && $related !== []) {
-                        return DogId::fromMixed(reset($related));
-                    }
-                }
-            } catch (\Throwable $e) {
-                // Fall through to legacy / meta paths.
-            }
-        }
-
-        // Legacy jet_rel_N meta keys.
-        $legacyKeys = [
-            'jet_rel_' . $relationId,
-            '_jet_rel_' . $relationId,
-            'relation_' . $relationId,
-        ];
-
-        return $this->metaDogId($postId, $legacyKeys);
-    }
-
     /**
-     * @param array<int, string> $keys
+     * Resolve the parent of a dog through the JetEngine relations API only.
+     *
+     * Parent links live in dedicated relation tables (db_table: true), so raw
+     * post meta is never queried here.
      */
-    private function metaDogId(int $postId, array $keys): ?DogId
+    private function resolveRelatedId(int $postId, int $relationId): ?DogId
     {
-        if (!function_exists('get_post_meta')) {
+        if (!function_exists('jet_engine') || !isset(jet_engine()->relations)) {
             return null;
         }
 
-        foreach ($keys as $key) {
-            $raw = get_post_meta($postId, $key, true);
-            if ($raw === '' || $raw === null || $raw === false) {
-                continue;
+        try {
+            $relation = jet_engine()->relations->get_active_relations($relationId);
+            if (!$relation) {
+                return null;
             }
 
-            if (is_array($raw)) {
-                $raw = reset($raw);
+            // Child -> parent direction: the dog is the child object.
+            $related = $relation->get_parents($postId, 'ids');
+            if (is_array($related) && $related !== []) {
+                $id = DogId::fromMixed(reset($related));
+                if ($id !== null) {
+                    return $id;
+                }
             }
 
-            $id = DogId::fromMixed($raw);
-            if ($id !== null) {
-                return $id;
+            // Parent -> child direction: some setups store the dog as parent.
+            $related = $relation->get_children($postId, 'ids');
+            if (is_array($related) && $related !== []) {
+                $id = DogId::fromMixed(reset($related));
+                if ($id !== null) {
+                    return $id;
+                }
             }
+        } catch (\Throwable $e) {
+            // Relation lookup failures degrade to "unknown parent".
         }
 
         return null;

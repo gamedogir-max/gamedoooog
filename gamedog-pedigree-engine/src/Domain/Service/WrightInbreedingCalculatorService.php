@@ -22,10 +22,25 @@ namespace GameDog\PedigreeEngine\Domain\Service;
 use GameDog\PedigreeEngine\Domain\Entity\PedigreeNode;
 use GameDog\PedigreeEngine\Domain\Entity\PedigreeTree;
 use GameDog\PedigreeEngine\Domain\ValueObject\CoiPercentage;
-use GameDog\PedigreeEngine\Domain\ValueObject\DogId;
 
 final class WrightInbreedingCalculatorService implements InbreedingCalculatorInterface
 {
+    /**
+     * Wright COI is computed over a 4-generation window: the sire and dam
+     * branches are each walked three levels deep (great-grandparents).
+     */
+    private const MAX_BRANCH_DISTANCE = 3;
+
+    /** @var AncestorPathCollector */
+    private $pathCollector;
+
+    public function __construct(?AncestorPathCollector $pathCollector = null)
+    {
+        $this->pathCollector = $pathCollector !== null
+            ? $pathCollector
+            : new AncestorPathCollector();
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -58,8 +73,8 @@ final class WrightInbreedingCalculatorService implements InbreedingCalculatorInt
         // n1 / n2 in Wright's formula are generations from SIRE / DAM to A,
         // so path length from subject to A is n+1; we store distance from
         // the branch root (sire or dam) which is exactly n1 / n2.
-        $sirePaths = $this->collectAncestorPaths($sireBranch, 0, []);
-        $damPaths  = $this->collectAncestorPaths($damBranch, 0, []);
+        $sirePaths = $this->pathCollector->collect($sireBranch, 0, self::MAX_BRANCH_DISTANCE);
+        $damPaths  = $this->pathCollector->collect($damBranch, 0, self::MAX_BRANCH_DISTANCE);
 
         if ($sirePaths === [] || $damPaths === []) {
             return CoiPercentage::zero();
@@ -76,9 +91,8 @@ final class WrightInbreedingCalculatorService implements InbreedingCalculatorInt
         $fx = 0.0;
 
         foreach ($common as $ancestorId) {
-            // Skip ancestors that are themselves only reachable through
-            // another common ancestor already counted — Wright's formula
-            // sums over ALL independent path pairs to each common ancestor.
+            // Wright's formula sums over every independent path pair that
+            // reaches this common ancestor from the sire and dam sides.
             $sireDistances = $sirePaths[$ancestorId];
             $damDistances  = $damPaths[$ancestorId];
 
@@ -134,80 +148,6 @@ final class WrightInbreedingCalculatorService implements InbreedingCalculatorInt
         return $common;
     }
 
-    /**
-     * Walk a pedigree branch and collect every ancestor ID with the list of
-     * generation distances from the branch root (sire or dam node).
-     *
-     * Distance 0 means the branch root itself (the sire or dam of the subject).
-     *
-     * @param PedigreeNode     $node
-     * @param int              $distance From branch root.
-     * @param array<int, bool> $visited  Guard against circular references.
-     *
-     * @return array<int, array<int, int>> Map of dogId => list of distances.
-     */
-    private function collectAncestorPaths(PedigreeNode $node, int $distance, array $visited): array
-    {
-        $result = [];
-
-        if ($node->isEmpty()) {
-            return $result;
-        }
-
-        $dogId = $node->dogId();
-        if ($dogId === null) {
-            return $result;
-        }
-
-        $id = $dogId->toInt();
-
-        // Circular lineage guard: stop if we have already seen this dog
-        // on the current path from the branch root.
-        if (isset($visited[$id])) {
-            return $result;
-        }
-
-        $visited[$id] = true;
-
-        if (!isset($result[$id])) {
-            $result[$id] = [];
-        }
-        $result[$id][] = $distance;
-
-        $sireChild = $node->sireNode();
-        if ($sireChild !== null && !$sireChild->isEmpty()) {
-            $fromSire = $this->collectAncestorPaths($sireChild, $distance + 1, $visited);
-            $result   = $this->mergePathMaps($result, $fromSire);
-        }
-
-        $damChild = $node->damNode();
-        if ($damChild !== null && !$damChild->isEmpty()) {
-            $fromDam = $this->collectAncestorPaths($damChild, $distance + 1, $visited);
-            $result  = $this->mergePathMaps($result, $fromDam);
-        }
-
-        return $result;
-    }
-
-    /**
-     * @param array<int, array<int, int>> $a
-     * @param array<int, array<int, int>> $b
-     *
-     * @return array<int, array<int, int>>
-     */
-    private function mergePathMaps(array $a, array $b): array
-    {
-        foreach ($b as $id => $distances) {
-            if (!isset($a[$id])) {
-                $a[$id] = $distances;
-                continue;
-            }
-
-            foreach ($distances as $d) {
-                $a[$id][] = $d;
-            }
-        }
-
-        return $a;
-    }
+    // Ancestor path resolution now lives in AncestorPathCollector so the COI
+    // and blood-contribution algorithms share identical traversal + guards.
 }
