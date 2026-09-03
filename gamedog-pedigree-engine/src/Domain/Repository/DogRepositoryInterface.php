@@ -32,10 +32,15 @@ interface DogRepositoryInterface
     /**
      * Persist the calculated COI for a dog.
      */
-    public function saveCoi(DogId $id, CoiPercentage $coi): void;
+    public function saveCoi(DogId $id, CoiPercentage $coi, int $depth = 4): void;
 
     /**
      * Read previously stored COI meta, if any.
      */
     public function getStoredCoi(DogId $id): ?CoiPercentage;
+
+    /**
+     * Read the generation depth used when the COI was last persisted.
+     */
+    public function getStoredCoiDepth(DogId $id): int;
 }

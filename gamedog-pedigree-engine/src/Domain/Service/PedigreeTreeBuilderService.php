@@ -2,7 +2,7 @@
 /**
  * Domain service that assembles a PedigreeTree from repository + relation ports.
  *
- * Does not calculate COI itself — that is delegated to InbreedingCalculatorInterface.
+ * Does not calculate COI itself - that is delegated to InbreedingCalculatorInterface.
  *
  * @package GameDog\PedigreeEngine\Domain\Service
  */
@@ -27,6 +27,12 @@ final class PedigreeTreeBuilderService
     /** @var RelationTraversalInterface */
     private $relations;
 
+    /** @var array<int, Dog|null> In-memory identity map for a single build. */
+    private $memory = [];
+
+    /** @var array<int, bool> IDs requested in the current build batch. */
+    private $pending = [];
+
     public function __construct(DogRepositoryInterface $dogs, RelationTraversalInterface $relations)
     {
         $this->dogs      = $dogs;
@@ -38,6 +44,10 @@ final class PedigreeTreeBuilderService
      */
     public function build(DogId $subjectId, GenerationDepth $depth): PedigreeTree
     {
+        // Fresh identity map per build so one request never serves stale data.
+        $this->memory  = [];
+        $this->pending = [];
+
         $subject = $this->dogs->findById($subjectId);
 
         if ($subject === null) {
@@ -45,6 +55,8 @@ final class PedigreeTreeBuilderService
 
             return new PedigreeTree($subjectId, $root, $depth);
         }
+
+        $this->memory[$subjectId->toInt()] = $subject;
 
         $root = $this->buildNode($subject, 0, $depth->toInt(), 'subject', []);
 
@@ -102,33 +114,90 @@ final class PedigreeTreeBuilderService
             $damId = $dog->damId();
         }
 
+        // Register the parent IDs for one batched repository lookup, avoiding
+        // an N+1 pattern for every node in the tree.
+        $batch = [];
         if ($sireId instanceof DogId) {
-            $sireDog = $this->dogs->findById($sireId);
-            if ($sireDog !== null) {
-                $node = $node->withSireNode(
-                    $this->buildNode($sireDog, $generation + 1, $maxDepth, 'sire', $pathVisited)
-                );
-            } else {
-                $node = $node->withSireNode(
-                    new PedigreeNode($sireId, 'Dog #' . $sireId->toInt(), $generation + 1, 'sire')
-                );
-            }
+            $batch[$sireId->toInt()] = true;
+        }
+        if ($damId instanceof DogId) {
+            $batch[$damId->toInt()] = true;
+        }
+        if ($batch !== []) {
+            $this->queueBatch($batch);
+        }
+
+        if ($sireId instanceof DogId) {
+            $node = $node->withSireNode(
+                $this->resolveChildNode($sireId, $generation + 1, $maxDepth, 'sire', $pathVisited)
+            );
         }
 
         if ($damId instanceof DogId) {
-            $damDog = $this->dogs->findById($damId);
-            if ($damDog !== null) {
-                $node = $node->withDamNode(
-                    $this->buildNode($damDog, $generation + 1, $maxDepth, 'dam', $pathVisited)
-                );
-            } else {
-                $node = $node->withDamNode(
-                    new PedigreeNode($damId, 'Dog #' . $damId->toInt(), $generation + 1, 'dam')
-                );
-            }
+            $node = $node->withDamNode(
+                $this->resolveChildNode($damId, $generation + 1, $maxDepth, 'dam', $pathVisited)
+            );
         }
 
         return $node;
+    }
+
+    /**
+     * Resolve a single child dog from the identity map (or the repository) and
+     * continue the recursive expansion.
+     *
+     * @param array<int, bool> $pathVisited
+     */
+    private function resolveChildNode(
+        DogId $dogId,
+        int $generation,
+        int $maxDepth,
+        string $side,
+        array $pathVisited
+    ): PedigreeNode {
+        $intId = $dogId->toInt();
+
+        if (!array_key_exists($intId, $this->memory)) {
+            $child = $this->dogs->findById($dogId);
+            $this->memory[$intId] = $child;
+        }
+
+        $child = $this->memory[$intId];
+
+        if ($child === null) {
+            return new PedigreeNode($dogId, 'Dog #' . $intId, $generation, $side);
+        }
+
+        return $this->buildNode($child, $generation, $maxDepth, $side, $pathVisited);
+    }
+
+    /**
+     * Queue IDs for a single repository batch load.
+     *
+     * @param array<int, bool> $ids
+     */
+    private function queueBatch(array $ids): void
+    {
+        foreach ($ids as $id => $flag) {
+            if (!array_key_exists($id, $this->memory) && !isset($this->pending[$id])) {
+                $this->pending[$id] = true;
+            }
+        }
+
+        if ($this->pending === []) {
+            return;
+        }
+
+        try {
+            $loaded = $this->dogs->findByIds(array_keys($this->pending));
+            foreach ($loaded as $id => $dog) {
+                $this->memory[$id] = $dog;
+            }
+        } catch (\Throwable $e) {
+            // Batch loading is an optimisation; failures fall back to per-node loads.
+        }
+
+        $this->pending = [];
     }
 
     /**

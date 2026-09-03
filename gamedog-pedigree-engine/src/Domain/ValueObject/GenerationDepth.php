@@ -11,7 +11,7 @@ namespace GameDog\PedigreeEngine\Domain\ValueObject;
 
 final class GenerationDepth
 {
-    public const DEFAULT_COI_DEPTH = 5;
+    public const DEFAULT_COI_DEPTH = 4;
 
     /** @var int */
     private $value;

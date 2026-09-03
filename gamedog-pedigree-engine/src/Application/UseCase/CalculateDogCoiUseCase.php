@@ -93,7 +93,8 @@ final class CalculateDogCoiUseCase
 
         // Fast path: stored meta when not forcing recalculation.
         // A stored "0.00%" is a valid prior result and must not trigger a recompute loop.
-        if (!$force) {
+        // Only trust the stored value when it was computed at the requested depth.
+        if (!$force && $this->dogs->getStoredCoiDepth($id) === $depthVo->toInt()) {
             $stored = $this->dogs->getStoredCoi($id);
             if ($stored instanceof CoiPercentage) {
                 $tree   = $this->treeBuilder->build($id, $depthVo);
@@ -131,7 +132,7 @@ final class CalculateDogCoiUseCase
 
         if ($sireId === null || $damId === null) {
             $zero = CoiPercentage::zero();
-            $this->persist($id, $zero);
+            $this->persist($id, $zero, $depthVo->toInt());
             $result = new CoiResultDto($id->toInt(), $zero->formatted(), 0.0, 0.0, [], true);
             $this->storeCache($cacheKey, $result);
 
@@ -143,7 +144,7 @@ final class CalculateDogCoiUseCase
         $common = $this->calculator->findCommonAncestorIds($tree->sireBranch(), $tree->damBranch());
         $coi    = $this->calculator->calculateFromBranches($tree->sireBranch(), $tree->damBranch());
 
-        $this->persist($id, $coi);
+        $this->persist($id, $coi, $depthVo->toInt());
 
         $result = new CoiResultDto(
             $id->toInt(),
@@ -158,10 +159,10 @@ final class CalculateDogCoiUseCase
         return $result;
     }
 
-    private function persist(DogId $id, CoiPercentage $coi): void
+    private function persist(DogId $id, CoiPercentage $coi, int $depth): void
     {
         try {
-            $this->dogs->saveCoi($id, $coi);
+            $this->dogs->saveCoi($id, $coi, $depth);
         } catch (\Throwable $e) {
             // Persistence failures must not break rendering.
         }

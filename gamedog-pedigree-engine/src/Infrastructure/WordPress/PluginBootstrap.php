@@ -1,6 +1,6 @@
 <?php
 /**
- * WordPress plugin bootstrap — wires hooks, shortcodes, assets, Elementor.
+ * WordPress plugin bootstrap - wires hooks, shortcodes, assets, Elementor.
  *
  * @package GameDog\PedigreeEngine\Infrastructure\WordPress
  */
@@ -9,8 +9,12 @@ declare(strict_types=1);
 
 namespace GameDog\PedigreeEngine\Infrastructure\WordPress;
 
-use GameDog\PedigreeEngine\Presentation\Shortcode\PedigreeTreeShortcode;
+use GameDog\PedigreeEngine\Presentation\Shortcode\PedigreeAnalyticsSuiteShortcode;
+use GameDog\PedigreeEngine\Presentation\Shortcode\PedigreeDiversityCardShortcode;
+use GameDog\PedigreeEngine\Presentation\Shortcode\PedigreeMatrixShortcode;
+use GameDog\PedigreeEngine\Presentation\Shortcode\PedigreeStatisticsShortcode;
 use GameDog\PedigreeEngine\Presentation\Shortcode\SiblingsBoxShortcode;
+use GameDog\PedigreeEngine\Presentation\Shortcode\SiblingsTabsShortcode;
 
 final class PluginBootstrap
 {
@@ -53,13 +57,29 @@ final class PluginBootstrap
 
     public function registerShortcodes(): void
     {
-        /** @var PedigreeTreeShortcode $pedigree */
-        $pedigree = $this->container->get(PedigreeTreeShortcode::class);
+        /** @var PedigreeMatrixShortcode $pedigree */
+        $pedigree = $this->container->get(PedigreeMatrixShortcode::class);
         $pedigree->register();
+
+        /** @var SiblingsTabsShortcode $siblingsTabs */
+        $siblingsTabs = $this->container->get(SiblingsTabsShortcode::class);
+        $siblingsTabs->register();
 
         /** @var SiblingsBoxShortcode $siblings */
         $siblings = $this->container->get(SiblingsBoxShortcode::class);
         $siblings->register();
+
+        /** @var PedigreeStatisticsShortcode $statistics */
+        $statistics = $this->container->get(PedigreeStatisticsShortcode::class);
+        $statistics->register();
+
+        /** @var PedigreeDiversityCardShortcode $diversity */
+        $diversity = $this->container->get(PedigreeDiversityCardShortcode::class);
+        $diversity->register();
+
+        /** @var PedigreeAnalyticsSuiteShortcode $suite */
+        $suite = $this->container->get(PedigreeAnalyticsSuiteShortcode::class);
+        $suite->register();
     }
 
     public function registerAssets(): void
@@ -81,6 +101,11 @@ final class PluginBootstrap
             GD_PEDIGREE_VERSION,
             true
         );
+
+        // Shortcodes render after wp_head, so enqueue up front to guarantee
+        // the stylesheet and tab script are printed on the page.
+        wp_enqueue_style('gamedog-pedigree');
+        wp_enqueue_script('gamedog-pedigree');
     }
 
     /**

@@ -218,3 +218,455 @@
     align-items: flex-start;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * 5-generation pedigree matrix
+ * ------------------------------------------------------------------------ */
+
+.gd-pedigree-matrix-wrap {
+  --gd-title-red: #dc2626;
+  --gd-title-red-dark: #b91c1c;
+  --gd-name-blue: #1e40af;
+  --gd-frame-border: #1f2937;
+  --gd-muted: #6b7280;
+  width: 100%;
+  overflow-x: auto;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: #111827;
+}
+
+.gd-pedigree-matrix {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: separate;
+  border-spacing: 4px;
+  table-layout: fixed;
+}
+
+.gd-pedigree-matrix tbody tr {
+  height: 46px;
+}
+
+.gd-matrix-cell {
+  vertical-align: middle;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 4px 6px;
+  text-align: center;
+  overflow: hidden;
+}
+
+.gd-matrix-cell.gd-matrix-empty {
+  background: #f9fafb;
+  border-style: dashed;
+}
+
+.gd-matrix-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.gd-matrix-text {
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.gd-matrix-titles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--gd-title-red);
+  text-transform: uppercase;
+}
+
+.gd-matrix-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.gd-matrix-name {
+  display: inline-block;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--gd-name-blue);
+  text-decoration: none;
+}
+
+.gd-matrix-name:hover {
+  text-decoration: underline;
+}
+
+.gd-matrix-unknown {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--gd-muted);
+}
+
+.gd-linebreeding-dot {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.gd-matrix-photo {
+  display: inline-block;
+  border: 2px solid var(--gd-frame-border);
+  border-radius: 4px;
+  overflow: hidden;
+  line-height: 0;
+  background: #000;
+}
+
+.gd-matrix-photo img {
+  display: block;
+  width: 120px;
+  height: 85px;
+  object-fit: cover;
+}
+
+.gd-matrix-camera {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: #374151;
+  line-height: 1;
+}
+
+.gd-matrix-camera:hover {
+  color: var(--gd-name-blue);
+}
+
+.gd-matrix-camera-icon {
+  font-size: 1.15rem;
+}
+
+.screen-reader-text {
+  border: 0;
+  clip: rect(1px, 1px, 1px, 1px);
+  clip-path: inset(50%);
+  height: 1px;
+  width: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  word-wrap: normal;
+}
+
+/* ---------------------------------------------------------------------------
+ * Siblings tabs
+ * ------------------------------------------------------------------------ */
+
+.gd-siblings-tabs {
+  --gd-tab-active: #2563eb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: #111827;
+}
+
+.gd-tabs-nav {
+  display: flex;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.gd-tab-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0.65rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #4b5563;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.gd-tab-btn:hover {
+  color: #111827;
+}
+
+.gd-tab-btn.gd-tab-active {
+  color: var(--gd-tab-active);
+  border-bottom-color: var(--gd-tab-active);
+}
+
+.gd-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.gd-tab-btn.gd-tab-active .gd-tab-count {
+  background: var(--gd-tab-active);
+  color: #ffffff;
+}
+
+.gd-tabs-panels {
+  padding: 0.75rem 1rem;
+}
+
+.gd-tab-panel {
+  display: none;
+}
+
+.gd-tab-panel.gd-tab-panel-active {
+  display: block;
+}
+
+.gd-siblings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.gd-sibling-item {
+  font-size: 0.875rem;
+}
+
+.gd-sibling-name {
+  color: var(--gd-tab-active, #2563eb);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.gd-sibling-name:hover {
+  text-decoration: underline;
+}
+
+.gd-siblings-empty {
+  margin: 0;
+  color: #6b7280;
+  font-style: italic;
+  font-size: 0.875rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * Pedigree statistic table
+ * ------------------------------------------------------------------------ */
+
+.gd-pedigree-stats {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 0.9rem 1rem;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: #111827;
+}
+
+.gd-stats-header {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #111827;
+}
+
+.gd-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.gd-stats-table tbody tr {
+  border-bottom: 1px solid #f0f1f3;
+}
+
+.gd-stats-table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+.gd-stats-table td {
+  padding: 0.5rem 0.35rem;
+  vertical-align: top;
+  font-size: 0.875rem;
+}
+
+.gd-stats-name {
+  width: 62%;
+}
+
+.gd-stats-name a,
+.gd-stats-name span {
+  color: #111827;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.gd-stats-name a:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.gd-stats-count {
+  width: 16%;
+  text-align: center;
+  color: #374151;
+  font-weight: 600;
+}
+
+.gd-stats-percent {
+  width: 22%;
+  text-align: right;
+  color: #dc2626;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.gd-stats-empty {
+  margin: 0;
+  color: #6b7280;
+  font-style: italic;
+  font-size: 0.875rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * Diversity card (COI + AVK)
+ * ------------------------------------------------------------------------ */
+
+.gd-diversity-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 1rem;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: #111827;
+}
+
+.gd-diversity-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.gd-diversity-col {
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #eef0f2;
+  padding: 0.85rem;
+  text-align: center;
+}
+
+.gd-diversity-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #4b5563;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+.gd-info {
+  cursor: help;
+  color: #9ca3af;
+}
+
+.gd-diversity-value {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #111827;
+  font-variant-numeric: tabular-nums;
+}
+
+.gd-diversity-note {
+  margin: 0.75rem 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+.gd-diversity-cta {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  text-decoration: none;
+  background: #c5161d;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.gd-diversity-cta:hover {
+  background: #a31319;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.gd-diversity-cta:active {
+  transform: translateY(1px);
+}
+
+/* ---------------------------------------------------------------------------
+ * Analytics suite container
+ * ------------------------------------------------------------------------ */
+
+.gd-analytics-suite {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+.gd-suite-block {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .gd-pedigree-matrix {
+    min-width: 760px;
+  }
+
+  .gd-diversity-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gd-tabs-nav {
+    flex-wrap: wrap;
+  }
+
+  .gd-stats-name {
+    width: 50%;
+  }
+}
