@@ -338,12 +338,17 @@ final class PedigreeEngineIntegrationTest
 
         // Repeated dogs get 2 dots each (14 repeated => 28 dots).
         $this->assertSame(28, substr_count($html, 'gd-linebreeding-dot'), 'linebreeding dots rendered');
+        $this->assertSame(28, substr_count($html, 'data-dot-color='), 'data-dot-color attributes rendered');
+        $this->assertTrue(strpos($html, 'gd-dot-idx-0') !== false, 'palette index class rendered');
+        $this->assertSame(0, substr_count($html, 'style='), 'zero inline styles rendered');
 
         // Photos: dog 2 (gen1) once + dog 10 (gen2) twice = 3 framed photos.
         $this->assertSame(3, substr_count($html, 'gd-matrix-photo'), 'framed photos for gen 1-2');
 
-        // Camera: dog 20 (gen3) appears twice.
+        // Camera: dog 20 (gen3) appears twice with aria-label instead of screen-reader-text.
         $this->assertSame(2, substr_count($html, 'class="gd-matrix-camera"'), 'camera icons for gen 3+');
+        $this->assertSame(2, substr_count($html, 'aria-label="View photo of GG A"'), 'camera icons have aria-label');
+        $this->assertSame(0, substr_count($html, 'screen-reader-text'), 'zero screen-reader-text spans');
 
         // 32 unknown leaves.
         $this->assertSame(32, substr_count($html, 'gd-matrix-unknown'), 'unknown leaves rendered');

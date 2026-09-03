@@ -223,6 +223,7 @@ final class BuildPedigreeMatrixUseCase
             $dots[$id] = [
                 'color' => self::PALETTE[$i % count(self::PALETTE)],
                 'count' => $count,
+                'index' => $i % count(self::PALETTE),
             ];
             $i++;
         }

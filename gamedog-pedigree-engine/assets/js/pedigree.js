@@ -1,19 +1,8 @@
 /**
- * GameDog Pedigree Engine - lightweight front-end helpers.
+ * GameDog Pedigree Engine - sibling tabs interaction.
  */
 (function () {
   'use strict';
-
-  function enhanceCommonAncestors(root) {
-    if (!root) {
-      return;
-    }
-
-    var nodes = root.querySelectorAll('.gd-node-inbred, [data-common-ancestor="1"]');
-    for (var i = 0; i < nodes.length; i++) {
-      nodes[i].setAttribute('title', nodes[i].getAttribute('title') || 'Common ancestor in this pedigree');
-    }
-  }
 
   function initSiblingsTabs(root) {
     if (!root) {
@@ -44,15 +33,8 @@
   }
 
   function init() {
-    var i;
-
-    var trees = document.querySelectorAll('.gd-pedigree-tree');
-    for (i = 0; i < trees.length; i++) {
-      enhanceCommonAncestors(trees[i]);
-    }
-
     var tabs = document.querySelectorAll('.gd-siblings-tabs');
-    for (i = 0; i < tabs.length; i++) {
+    for (var i = 0; i < tabs.length; i++) {
       initSiblingsTabs(tabs[i]);
     }
   }

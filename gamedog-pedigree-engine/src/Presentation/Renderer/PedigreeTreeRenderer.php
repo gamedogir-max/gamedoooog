@@ -37,8 +37,7 @@ final class PedigreeTreeRenderer
     {
         $vm = $this->viewModelBuilder->build($source);
 
-        if (function_exists('wp_enqueue_style')) {
-            wp_enqueue_style('gamedog-pedigree');
+        if (function_exists('wp_enqueue_script')) {
             wp_enqueue_script('gamedog-pedigree');
         }
 
