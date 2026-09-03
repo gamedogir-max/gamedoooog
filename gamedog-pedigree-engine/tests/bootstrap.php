@@ -31,12 +31,6 @@ if (!function_exists('esc_url')) {
     }
 }
 
-if (!function_exists('wp_enqueue_style')) {
-    function wp_enqueue_style($handle, $src = '', $deps = [], $ver = null)
-    {
-    }
-}
-
 if (!function_exists('wp_enqueue_script')) {
     function wp_enqueue_script($handle, $src = '', $deps = [], $ver = null, $inFooter = false)
     {

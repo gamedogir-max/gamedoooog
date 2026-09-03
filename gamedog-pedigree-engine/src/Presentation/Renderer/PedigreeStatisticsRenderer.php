@@ -16,10 +16,6 @@ final class PedigreeStatisticsRenderer
      */
     public function render(array $data): string
     {
-        if (function_exists('wp_enqueue_style')) {
-            wp_enqueue_style('gamedog-pedigree');
-        }
-
         $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
 
         $html  = '<div class="gd-pedigree-stats">';

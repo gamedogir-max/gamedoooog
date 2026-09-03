@@ -18,8 +18,7 @@ final class SiblingsTabsRenderer
      */
     public function render(array $data): string
     {
-        if (function_exists('wp_enqueue_style')) {
-            wp_enqueue_style('gamedog-pedigree');
+        if (function_exists('wp_enqueue_script')) {
             wp_enqueue_script('gamedog-pedigree');
         }
 

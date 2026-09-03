@@ -84,15 +84,7 @@ final class PluginBootstrap
 
     public function registerAssets(): void
     {
-        $css = GD_PEDIGREE_URL . 'assets/css/pedigree.css';
-        $js  = GD_PEDIGREE_URL . 'assets/js/pedigree.js';
-
-        wp_register_style(
-            'gamedog-pedigree',
-            $css,
-            [],
-            GD_PEDIGREE_VERSION
-        );
+        $js = GD_PEDIGREE_URL . 'assets/js/pedigree.js';
 
         wp_register_script(
             'gamedog-pedigree',
@@ -103,8 +95,7 @@ final class PluginBootstrap
         );
 
         // Shortcodes render after wp_head, so enqueue up front to guarantee
-        // the stylesheet and tab script are printed on the page.
-        wp_enqueue_style('gamedog-pedigree');
+        // the tab script is printed on the page.
         wp_enqueue_script('gamedog-pedigree');
     }
 

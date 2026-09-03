@@ -16,10 +16,6 @@ final class DiversityCardRenderer
      */
     public function render(array $data): string
     {
-        if (function_exists('wp_enqueue_style')) {
-            wp_enqueue_style('gamedog-pedigree');
-        }
-
         $coiPercent = isset($data['coi_percent']) ? (float) $data['coi_percent'] : 0.0;
         $avkPercent = isset($data['avk_percent']) ? (float) $data['avk_percent'] : 0.0;
         $depth      = isset($data['depth']) ? (int) $data['depth'] : 4;

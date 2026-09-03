@@ -19,10 +19,6 @@ final class PedigreeMatrixRenderer
      */
     public function render(array $data): string
     {
-        if (function_exists('wp_enqueue_style')) {
-            wp_enqueue_style('gamedog-pedigree');
-        }
-
         $cells = isset($data['cells']) && is_array($data['cells']) ? $data['cells'] : [];
         $dots  = isset($data['linebreeding']) && is_array($data['linebreeding'])
             ? $data['linebreeding']
@@ -128,7 +124,8 @@ final class PedigreeMatrixRenderer
         $dot = '';
         if ($dogId > 0 && isset($dots[$dogId])) {
             $color = (string) $dots[$dogId]['color'];
-            $dot   = '<span class="gd-linebreeding-dot" style="background-color:' . esc_attr($color) . ';" title="Linebreeding: appears ' . (int) $dots[$dogId]['count'] . ' times"></span>';
+            $index = isset($dots[$dogId]['index']) ? (int) $dots[$dogId]['index'] : 0;
+            $dot   = '<span class="gd-linebreeding-dot gd-dot-idx-' . $index . '" data-dot-color="' . esc_attr($color) . '" title="Linebreeding: appears ' . (int) $dots[$dogId]['count'] . ' times"></span>';
         }
 
         $titleHtml = '';
@@ -175,9 +172,8 @@ final class PedigreeMatrixRenderer
         }
 
         // Generations 3, 4, 5: compact clickable camera icon.
-        return '<a class="gd-matrix-camera" href="' . esc_url($thumbnail) . '" target="_blank" rel="noopener" title="View photo of ' . $alt . '">'
+        return '<a class="gd-matrix-camera" href="' . esc_url($thumbnail) . '" target="_blank" rel="noopener" title="View photo of ' . $alt . '" aria-label="View photo of ' . $alt . '">'
             . '<span class="gd-matrix-camera-icon" aria-hidden="true">&#128247;</span>'
-            . '<span class="screen-reader-text">View photo of ' . $alt . '</span>'
             . '</a>';
     }
 }
